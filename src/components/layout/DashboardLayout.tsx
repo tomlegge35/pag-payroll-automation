@@ -7,18 +7,18 @@ import { useRouter } from 'next/navigation'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
-  user: { email?: string | null }
-  role: string
+  user?: { email?: string | null }
+  role?: string
 }
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { href: '/employees', label: 'Employees', icon: '👥' },
-  { href: '/reports', label: 'Reports', icon: '📋' },
-  { href: '/settings', label: 'Settings', icon: '⚙️', adminOnly: true },
+  { href: '/dashboard', label: 'Dashboard', icon: 'ð' },
+  { href: '/employees', label: 'Employees', icon: 'ð¥' },
+  { href: '/reports', label: 'Reports', icon: 'ð' },
+  { href: '/settings', label: 'Settings', icon: 'âï¸', adminOnly: true },
 ]
 
-export default function DashboardLayout({ children, user, role }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, user, role = 'pag_operator' }: DashboardLayoutProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -70,7 +70,7 @@ export default function DashboardLayout({ children, user, role }: DashboardLayou
             onClick={handleSignOut}
             className="w-full text-left text-xs text-blue-300 hover:text-white transition-colors py-1"
           >
-            Sign out →
+            Sign out â
           </button>
         </div>
       </div>
