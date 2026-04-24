@@ -50,7 +50,7 @@ export async function POST(
     });
 
     if (raisedBy === 'rodliffe') {
-      await sendQueryAlertToPAG({ cycleId: params.id, month: cycle.month, year: cycle.year, queryText: query_text });
+      await sendQueryAlertToPAG(params.id, cycle.month, cycle.year, query_text, newQuery.id);
     }
 
     return NextResponse.json({ success: true, query: newQuery });
