@@ -34,7 +34,7 @@ export async function POST(
       resolution: response_text.substring(0, 200),
     });
 
-    await sendQueryResponseToKhalid(params.id, cycle.month, cycle.year, query.query_text, response_text);
+    await sendQueryResponseToKhalid(params.id, cycle.month, cycle.year, query.query_text, response_text, false);
 
     return NextResponse.json({ success: true, message: 'Reply sent and query resolved' });
   } catch (error: unknown) {
