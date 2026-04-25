@@ -2,22 +2,20 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import InputsForm from '@/components/cycle/InputsForm'
-import { formatMonthYear } from '@/lib/utils/dates'
 
 export default async function CycleInputsPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: userRole } = await supabase
-    .from('user_roles')
+  const { data: userProfile } = await supabase
+    .from('user_profiles')
     .select('role')
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
-  const role = userRole?.role || 'pag_operator'
+  const role = userProfile?.role || 'pag_operator'
   
-  // Only PAG staff can submit inputs
   if (!['pag_admin', 'pag_operator'].includes(role)) {
     redirect('/dashboard')
   }
@@ -26,7 +24,7 @@ export default async function CycleInputsPage({ params }: { params: { id: string
     .from('payroll_cycles')
     .select('*')
     .eq('id', params.id)
-    .single()
+    .maybeSingle()
 
   if (!cycle) notFound()
   
@@ -40,6 +38,9 @@ export default async function CycleInputsPage({ params }: { params: { id: string
     .eq('status', 'active')
     .order('name')
 
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const cycleLabel = monthNames[(cycle.month || 1) - 1] + ' ' + cycle.year
+
   return (
     <DashboardLayout user={user} role={role}>
       <div className="space-y-6">
@@ -47,7 +48,7 @@ export default async function CycleInputsPage({ params }: { params: { id: string
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <span>Payroll</span>
             <span>›</span>
-            <span>{formatMonthYear(cycle.month, cycle.year)}</span>
+            <span>{cycleLabel}</span>
             <span>›</span>
             <span className="text-gray-900">Submit Inputs</span>
           </div>
@@ -55,7 +56,7 @@ export default async function CycleInputsPage({ params }: { params: { id: string
             Submit Payroll Inputs
           </h1>
           <p className="text-gray-600 mt-1">
-            {formatMonthYear(cycle.month, cycle.year)} — Review standing data and submit any changes
+            {cycleLabel} — Review standing data and submit any changes
           </p>
         </div>
         
