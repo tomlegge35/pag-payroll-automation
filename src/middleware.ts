@@ -1,61 +1,39 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+export function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
-          response.cookies.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
-          response.cookies.set({ name, value: '', ...options })
-        },
-      },
-    }
+  // Skip middleware for static assets and internal routes
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/favicon') ||
+    pathname.includes('.')
+  ) {
+    return NextResponse.next()
+  }
+
+  // Check for any Supabase session cookie (no network call)
+  const hasSession = request.cookies.getAll().some(
+    cookie => cookie.name.startsWith('sb-') && cookie.name.endsWith('-auth-token')
   )
 
-  // Use getSession() instead of getUser() - reads from cookie, no network call
-  const { data: { session } } = await supabase.auth.getSession()
-
-  // Redirect unauthenticated users away from protected routes
-  const pathname = request.nextUrl.pathname
   const isAuthRoute = pathname.startsWith('/auth')
-  const isPublicRoute = pathname === '/' || pathname.startsWith('/_next') || pathname.startsWith('/favicon')
 
-  if (!session && !isAuthRoute && !isPublicRoute) {
+  // Redirect unauthenticated users to login
+  if (!hasSession && !isAuthRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from login to dashboard
-  if (session && pathname.startsWith('/auth') && !pathname.startsWith('/auth/callback')) {
+  // Redirect authenticated users away from login (but not callback)
+  if (hasSession && pathname === '/auth/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
-  return response
+  return NextResponse.next()
 }
 
 export const config = {
