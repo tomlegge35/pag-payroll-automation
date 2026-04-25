@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { User } from '@supabase/supabase-js';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
 interface Query {
@@ -34,7 +35,7 @@ export default function CycleQueriesPage() {
 
   const [cycle, setCycle] = useState<PayrollCycle | null>(null);
   const [queries, setQueries] = useState<Query[]>([]);
-  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string>('pag_operator');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +108,7 @@ export default function CycleQueriesPage() {
   }
 
   if (loading) return (
-    <DashboardLayout user={user} role={role}>
+    <DashboardLayout user={user ?? undefined} role={role}>
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy" />
       </div>
@@ -115,7 +116,7 @@ export default function CycleQueriesPage() {
   );
 
   if (error) return (
-    <DashboardLayout user={user} role={role}>
+    <DashboardLayout user={user ?? undefined} role={role}>
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">{error}</div>
     </DashboardLayout>
   );
@@ -124,7 +125,7 @@ export default function CycleQueriesPage() {
   const openCount = queries.filter(q => q.status === 'open').length;
 
   return (
-    <DashboardLayout user={user} role={role}>
+    <DashboardLayout user={user ?? undefined} role={role}>
       <div className="space-y-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
