@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function LoginPage() {
+function LoginContent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -27,31 +27,46 @@ export default function LoginPage() {
           setError(error.message)
           setLoading(false)
         } else {
-          router.push('/dashboard')
+          router.replace('/dashboard')
         }
       })
     }
+  }, [])
 
-    // Handle hash-based tokens (implicit flow)
+  // Handle implicit flow hash token fallback
+  useEffect(() => {
     const hash = window.location.hash
     if (hash && hash.includes('access_token')) {
       setLoading(true)
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
-          router.push('/dashboard')
+          router.replace('/dashboard')
         } else {
           setLoading(false)
         }
       })
     }
-
-    // Handle error in URL params
-    const urlError = searchParams.get('error')
-    const urlErrorDesc = searchParams.get('error_description')
-    if (urlError) {
-      setError(urlErrorDesc || urlError)
-    }
   }, [])
+
+  const urlError = searchParams.get('error')
+  const urlErrorDesc = searchParams.get('error_description')
+
+  if (urlError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full bg-white rounded-lg shadow p-8 text-center">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">Authentication Error</h2>
+          <p className="text-gray-600">{urlErrorDesc || urlError}</p>
+          <button
+            onClick={() => router.replace('/auth/login')}
+            className="mt-4 px-4 py-2 bg-navy text-white rounded hover:bg-navy/90"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,11 +75,10 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError(error.message)
+      setLoading(false)
     } else {
-      router.push('/dashboard')
-      router.refresh()
+      router.replace('/dashboard')
     }
-    setLoading(false)
   }
 
   const handleAzureSSO = async () => {
@@ -85,9 +99,9 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pag-blue mx-auto mb-4" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy mx-auto mb-4" />
           <p className="text-gray-600">Signing you in...</p>
         </div>
       </div>
@@ -95,74 +109,91 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-pag-blue">PAG Payroll</h1>
-          <p className="text-gray-500 mt-1 text-sm">Premier Advisory Group Ltd</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-navy">PAG Payroll</h1>
+          <p className="mt-2 text-gray-600">Premier Advisory Group Ltd</p>
         </div>
 
-        <button
-          onClick={handleAzureSSO}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-3 bg-pag-blue text-white rounded-lg py-3 px-4 font-medium hover:bg-blue-800 transition-colors disabled:opacity-50 mb-6"
-        >
-          <svg width="20" height="20" viewBox="0 0 23 23" fill="none">
-            <path d="M1 1h10v10H1z" fill="#F25022"/>
-            <path d="M12 1h10v10H12z" fill="#7FBA00"/>
-            <path d="M1 12h10v10H1z" fill="#00A4EF"/>
-            <path d="M12 12h10v10H12z" fill="#FFB900"/>
-          </svg>
-          Sign in with Microsoft
-        </button>
+        <div className="bg-white rounded-lg shadow p-8 space-y-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+              {error}
+            </div>
+          )}
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {error}
-          </div>
-        )}
-
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200" />
-          </div>
-          <div className="relative flex justify-center text-xs text-gray-400">
-            <span className="bg-white px-2">or sign in with email</span>
-          </div>
-        </div>
-
-        <form onSubmit={handleEmailLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pag-blue"
-              placeholder="you@example.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pag-blue"
-              placeholder="••••••••"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-            />
-          </div>
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gray-800 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50"
+            onClick={handleAzureSSO}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
           >
-            Sign in
+            <svg width="20" height="20" viewBox="0 0 21 21" fill="none">
+              <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+              <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+              <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+              <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+            </svg>
+            Sign in with Microsoft
           </button>
-        </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">or sign in with email</span>
+            </div>
+          </div>
+
+          <form onSubmit={handleEmailLogin} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 px-4 bg-navy text-white font-medium rounded-lg hover:bg-navy/90 disabled:opacity-50 transition-colors"
+            >
+              Sign in
+            </button>
+          </form>
+        </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }
