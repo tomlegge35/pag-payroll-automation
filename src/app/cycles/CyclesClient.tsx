@@ -110,7 +110,7 @@ export default function CyclesClient({ cycles, role }: { cycles: Cycle[]; role: 
         <div className="card text-center py-12">
           <p className="text-gray-500 text-lg">No payroll cycles yet.</p>
           {canStart && (
-            <p className="text-gray-400 text-sm mt-2">Click "Start New Cycle" to begin.</p>
+            <p className="text-gray-400 text-sm mt-2">Click &quot;Start New Cycle&quot; to begin.</p>
           )}
         </div>
       ) : (
