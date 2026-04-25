@@ -1,119 +1,84 @@
+export const dynamic = 'force-dynamic'
+
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import { formatDate } from '@/lib/utils/dates'
+
+interface Employee {
+  id: string
+  employee_number: string
+  full_name: string
+  email: string | null
+  department: string | null
+  job_title: string | null
+  start_date: string | null
+  is_active: boolean
+}
 
 export default async function EmployeesPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const { data: userRole } = await supabase
-    .from('user_roles')
+  const { data: userProfile } = await supabase
+    .from('user_profiles')
     .select('role')
-    .eq('user_id', user.id)
-    .single()
+    .eq('id', user.id)
+    .maybeSingle()
 
-  const role = userRole?.role || 'pag_operator'
+  const role = userProfile?.role || 'pag_operator'
 
   const { data: employees } = await supabase
     .from('employees')
     .select('*')
-    .order('status')
-    .order('name')
-
-  const active = (employees || []).filter(e => e.status === 'active')
-  const leavers = (employees || []).filter(e => e.status === 'leaver')
+    .order('full_name')
 
   return (
     <DashboardLayout user={user} role={role}>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-navy">Employees</h1>
-            <p className="text-gray-600 mt-1">{active.length} active, {leavers.length} leaver{leavers.length !== 1 ? 's' : ''}</p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
+          <p className="text-gray-500 text-sm mt-1">{(employees || []).length} employees on record</p>
         </div>
 
-        {/* Active employees */}
-        <div className="card overflow-hidden">
-          <h3 className="mb-4">Active Employees ({active.length})</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="table-header">Name</th>
-                  <th className="table-header">ID</th>
-                  <th className="table-header">Role</th>
-                  <th className="table-header text-right">FTE Salary</th>
-                  <th className="table-header text-right">FTE</th>
-                  <th className="table-header">Tax Code</th>
-                  <th className="table-header">NI Cat</th>
-                  <th className="table-header">Pension</th>
-                  <th className="table-header">Started</th>
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job Title</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {(employees || []).map((emp: Employee) => (
+                <tr key={emp.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{emp.full_name}</p>
+                      <p className="text-xs text-gray-500">{emp.employee_number} · {emp.email || '—'}</p>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-700">{emp.department || '—'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">{emp.job_title || '—'}</td>
+                  <td className="px-6 py-4">
+                    <span className={'text-xs px-2 py-1 rounded-full ' + (emp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                      {emp.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <a href={'/employees/' + emp.id} className="text-sm text-blue-600 hover:underline">View</a>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {active.map(emp => (
-                  <tr key={emp.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="table-cell font-medium">{emp.name}</td>
-                    <td className="table-cell text-gray-500">{emp.payroll_id}</td>
-                    <td className="table-cell">
-                      <span className={`${emp.role === 'director' ? 'badge-blue' : 'badge-gray'} status-pill`}>
-                        {emp.role}
-                      </span>
-                    </td>
-                    <td className="table-cell text-right">
-                      {emp.fte_salary ? `£${emp.fte_salary.toLocaleString()}` : 'N/A'}
-                    </td>
-                    <td className="table-cell text-right">
-                      {emp.fte ? `${(emp.fte * 100).toFixed(0)}%` : '100%'}
-                    </td>
-                    <td className="table-cell">{emp.tax_code || '—'}</td>
-                    <td className="table-cell">{emp.ni_category || 'A'}</td>
-                    <td className="table-cell">{emp.pension_scheme || '—'}</td>
-                    <td className="table-cell text-gray-500">
-                      {emp.start_date ? formatDate(emp.start_date) : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
+          {(employees || []).length === 0 && (
+            <div className="p-6 text-center text-gray-500 text-sm">No employees found.</div>
+          )}
         </div>
-
-        {/* Leavers */}
-        {leavers.length > 0 && (
-          <div className="card overflow-hidden">
-            <h3 className="mb-4 text-gray-600">Leavers ({leavers.length})</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="table-header">Name</th>
-                    <th className="table-header">ID</th>
-                    <th className="table-header">Started</th>
-                    <th className="table-header">Left</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leavers.map(emp => (
-                    <tr key={emp.id} className="border-b border-gray-100 opacity-60">
-                      <td className="table-cell font-medium">{emp.name}</td>
-                      <td className="table-cell text-gray-500">{emp.payroll_id}</td>
-                      <td className="table-cell text-gray-500">
-                        {emp.start_date ? formatDate(emp.start_date) : '—'}
-                      </td>
-                      <td className="table-cell text-gray-500">
-                        {emp.end_date ? formatDate(emp.end_date) : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </div>
     </DashboardLayout>
   )
