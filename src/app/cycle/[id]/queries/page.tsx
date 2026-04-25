@@ -24,30 +24,46 @@ interface PayrollCycle {
   status: string;
 }
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-export default function QueriesPage() {
+export default function CycleQueriesPage() {
   const params = useParams();
   const router = useRouter();
   const cycleId = params.id as string;
-  const [cycle, setCycle] = useState<PayrollCycle | null>(null);
-  const [queries, setQueries] = useState<Query[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [replyText, setReplyText] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState<string | null>(null);
   const supabase = createClient();
 
-  useEffect(() => { if (cycleId) loadData(); }, [cycleId]);
+  const [cycle, setCycle] = useState<PayrollCycle | null>(null);
+  const [queries, setQueries] = useState<Query[]>([]);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [role, setRole] = useState<string>('pag_operator');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [newQuery, setNewQuery] = useState('');
+  const [replyText, setReplyText] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, [cycleId]);
 
   async function loadData() {
-    setLoading(true);
     try {
-      const { data: c, error: ce } = await supabase.from('payroll_cycles').select('id,month,year,status').eq('id', cycleId).single();
-      if (ce) throw ce;
+      setLoading(true);
+      const { data: { user: u } } = await supabase.auth.getUser();
+      if (!u) { router.push('/auth/login'); return; }
+      setUser(u);
+
+      const { data: profile } = await supabase
+        .from('user_profiles').select('role').eq('user_id', u.id).maybeSingle();
+      setRole(profile?.role || 'pag_operator');
+
+      const { data: c } = await supabase
+        .from('payroll_cycles').select('id,month,year,status').eq('id', cycleId).maybeSingle();
+      if (!c) { router.push('/dashboard'); return; }
       setCycle(c);
+
       const { data: q, error: qe } = await supabase
-        .from('queries').select('*').eq('cycle_id', cycleId).order('created_at', { ascending: true });
+        .from('payroll_queries').select('*').eq('cycle_id', cycleId).order('created_at', { ascending: true });
       if (qe) throw qe;
       setQueries(q || []);
     } catch (err: unknown) {
@@ -56,98 +72,143 @@ export default function QueriesPage() {
   }
 
   async function handleReply(queryId: string) {
-    const text = replyText[queryId];
-    if (!text?.trim()) return;
-    setSubmitting(queryId);
+    const text = replyText[queryId]?.trim();
+    if (!text) return;
+    setSubmitting(true);
     try {
-      const res = await fetch('/api/cycles/' + cycleId + '/queries/' + queryId + '/reply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ response_text: text }),
-      });
-      if (!res.ok) throw new Error('Failed to submit reply');
+      await supabase.from('payroll_queries').update({
+        response_text: text,
+        status: 'resolved',
+        resolved_at: new Date().toISOString()
+      }).eq('id', queryId);
       setReplyText(prev => ({ ...prev, [queryId]: '' }));
       await loadData();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to submit reply');
-    } finally { setSubmitting(null); }
+      setError(err instanceof Error ? err.message : 'Failed to reply');
+    } finally { setSubmitting(false); }
   }
 
-  if (loading) return <DashboardLayout><div className='flex items-center justify-center h-64'><div className='animate-spin rounded-full h-12 w-12 border-b-2 border-pag-blue'></div></div></DashboardLayout>;
-  if (error || !cycle) return <DashboardLayout><div className='p-6 text-red-600'>Error: {error || 'Not found'}</div></DashboardLayout>;
+  async function handleRaiseQuery() {
+    const text = newQuery.trim();
+    if (!text) return;
+    setSubmitting(true);
+    try {
+      await supabase.from('payroll_queries').insert({
+        cycle_id: cycleId,
+        raised_by: 'pag',
+        query_text: text,
+        status: 'open'
+      });
+      setNewQuery('');
+      await loadData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to raise query');
+    } finally { setSubmitting(false); }
+  }
 
+  if (loading) return (
+    <DashboardLayout user={user} role={role}>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy" />
+      </div>
+    </DashboardLayout>
+  );
+
+  if (error) return (
+    <DashboardLayout user={user} role={role}>
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">{error}</div>
+    </DashboardLayout>
+  );
+
+  const cycleLabel = cycle ? (MONTH_NAMES[(cycle.month || 1) - 1] + ' ' + cycle.year) : '';
   const openCount = queries.filter(q => q.status === 'open').length;
-  const resolvedCount = queries.filter(q => q.status === 'resolved').length;
 
   return (
-    <DashboardLayout>
-      <div className='max-w-4xl mx-auto p-6'>
-        <div className='flex items-center justify-between mb-6'>
-          <div>
-            <button onClick={() => router.back()} className='text-sm text-pag-blue hover:underline mb-2'>← Back</button>
-            <h1 className='text-2xl font-bold text-pag-navy'>{MONTHS[cycle.month - 1]} {cycle.year} — Query Thread</h1>
-            <p className='text-gray-500 text-sm mt-1'>All queries raised between PAG and Rodliffe for this cycle</p>
+    <DashboardLayout user={user} role={role}>
+      <div className="space-y-6">
+        <div>
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+            <span>Payroll</span>
+            <span>›</span>
+            <span>{cycleLabel}</span>
+            <span>›</span>
+            <span className="text-gray-900">Queries</span>
           </div>
-          <div className='flex gap-3'>
-            {openCount > 0 && <span className='px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium'>{openCount} Open</span>}
-            {resolvedCount > 0 && <span className='px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium'>{resolvedCount} Resolved</span>}
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-navy">Payroll Queries</h1>
+            {openCount > 0 && (
+              <span className="bg-amber-100 text-amber-800 text-sm font-medium px-3 py-1 rounded-full">
+                {openCount} open
+              </span>
+            )}
           </div>
         </div>
 
-        {queries.length === 0 ? (
-          <div className='bg-white border rounded-lg p-8 text-center text-gray-500'>
-            <p className='text-lg font-medium mb-1'>No queries raised</p>
-            <p className='text-sm'>No queries have been raised for this payroll cycle.</p>
-          </div>
-        ) : (
-          <div className='space-y-4'>
-            {queries.map((query) => (
-              <div key={query.id} className={'bg-white border rounded-lg overflow-hidden ' + (query.status === 'open' ? 'border-orange-200' : 'border-gray-200')}>
-                <div className={'px-4 py-3 border-b flex items-center justify-between ' + (query.status === 'open' ? 'bg-orange-50' : 'bg-gray-50')}>
-                  <div className='flex items-center gap-2'>
-                    <span className={'text-xs font-semibold px-2 py-0.5 rounded-full ' + (query.raised_by === 'rodliffe' ? 'bg-blue-100 text-blue-700' : 'bg-pag-navy text-white')}>
-                      {query.raised_by === 'rodliffe' ? 'Rodliffe' : 'PAG'}
-                    </span>
-                    <span className='text-sm text-gray-500'>{new Date(query.created_at).toLocaleString('en-GB', { timeZone: 'Europe/London' })}</span>
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Raise a Query</h2>
+          <textarea
+            className="w-full border border-gray-300 rounded-md p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-navy"
+            rows={3}
+            placeholder="Describe your query..."
+            value={newQuery}
+            onChange={e => setNewQuery(e.target.value)}
+          />
+          <button
+            onClick={handleRaiseQuery}
+            disabled={submitting || !newQuery.trim()}
+            className="mt-2 px-4 py-2 bg-navy text-white text-sm font-medium rounded-md disabled:opacity-50"
+          >
+            Raise Query
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {queries.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">No queries raised for this cycle.</div>
+          ) : (
+            queries.map(q => (
+              <div key={q.id} className={`bg-white rounded-lg border p-4 ${q.status === 'open' ? 'border-amber-300' : 'border-gray-200'}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${q.raised_by === 'pag' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                        {q.raised_by === 'pag' ? 'PAG' : 'Rodliffe'}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${q.status === 'open' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                        {q.status}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-800">{q.query_text}</p>
+                    {q.response_text && (
+                      <div className="mt-2 pl-3 border-l-2 border-green-400">
+                        <p className="text-xs text-gray-500 mb-0.5">Response</p>
+                        <p className="text-sm text-gray-700">{q.response_text}</p>
+                      </div>
+                    )}
                   </div>
-                  <span className={'text-xs font-medium px-2 py-0.5 rounded-full ' + (query.status === 'open' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700')}>
-                    {query.status === 'open' ? 'Open' : 'Resolved'}
-                  </span>
                 </div>
-                <div className='p-4'>
-                  <p className='text-gray-800 whitespace-pre-wrap'>{query.query_text}</p>
-                  {query.link_to_form && (
-                    <a href={query.link_to_form} className='mt-2 inline-block text-sm text-pag-blue hover:underline'>View Related Form</a>
-                  )}
-                  {query.response_text && (
-                    <div className='mt-4 pl-4 border-l-2 border-pag-blue'>
-                      <p className='text-xs text-gray-400 mb-1'>Response {query.resolved_at ? '(' + new Date(query.resolved_at).toLocaleString('en-GB', { timeZone: 'Europe/London' }) + ')' : ''}</p>
-                      <p className='text-gray-700 whitespace-pre-wrap'>{query.response_text}</p>
-                    </div>
-                  )}
-                  {query.status === 'open' && query.raised_by === 'rodliffe' && (
-                    <div className='mt-4'>
-                      <textarea
-                        value={replyText[query.id] || ''}
-                        onChange={(e) => setReplyText(prev => ({ ...prev, [query.id]: e.target.value }))}
-                        placeholder='Type your response...'
-                        rows={3}
-                        className='w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-pag-blue resize-none'
-                      />
-                      <button
-                        onClick={() => handleReply(query.id)}
-                        disabled={submitting === query.id || !replyText[query.id]?.trim()}
-                        className='mt-2 px-4 py-2 bg-pag-navy text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50'
-                      >
-                        {submitting === query.id ? 'Sending...' : 'Send Response'}
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {q.status === 'open' && (
+                  <div className="mt-3">
+                    <textarea
+                      className="w-full border border-gray-300 rounded-md p-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-navy"
+                      rows={2}
+                      placeholder="Reply and resolve..."
+                      value={replyText[q.id] || ''}
+                      onChange={e => setReplyText(prev => ({ ...prev, [q.id]: e.target.value }))}
+                    />
+                    <button
+                      onClick={() => handleReply(q.id)}
+                      disabled={submitting}
+                      className="mt-1 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md disabled:opacity-50"
+                    >
+                      Reply &amp; Resolve
+                    </button>
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );
