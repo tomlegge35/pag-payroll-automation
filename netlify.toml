@@ -5,8 +5,12 @@
 [build.environment]
   NODE_VERSION = "18"
   NEXT_USE_NETLIFY_EDGE = "true"
-  NEXT_PUBLIC_SUPABASE_URL = "https://offwktjhwfveaearifja.supabase.co"
-  NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9mZndrdGpod2Z2ZWFlYXJpZmphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNzk3NTcsImV4cCI6MjA5MjY1NTc1N30.3gx1lBnPXt2Z09_KVskQ3Bd13-frzMHDZg4eYnfoBqg"
+
+[dev]
+  command = "npm run dev"
+  port = 3000
+  targetPort = 3000
+  framework = "#custom"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
