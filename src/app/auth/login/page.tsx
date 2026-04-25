@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -17,37 +17,7 @@ function LoginContent() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Handle OAuth code exchange if code lands on this page instead of /auth/callback
-  useEffect(() => {
-    const code = searchParams.get('code')
-    if (code) {
-      setLoading(true)
-      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) {
-          setError(error.message)
-          setLoading(false)
-        } else {
-          router.replace('/dashboard')
-        }
-      })
-    }
-  }, [])
-
-  // Handle implicit flow hash token fallback
-  useEffect(() => {
-    const hash = window.location.hash
-    if (hash && hash.includes('access_token')) {
-      setLoading(true)
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          router.replace('/dashboard')
-        } else {
-          setLoading(false)
-        }
-      })
-    }
-  }, [])
-
+  // Show error from callback redirect (e.g. auth_callback_error)
   const urlError = searchParams.get('error')
   const urlErrorDesc = searchParams.get('error_description')
 
@@ -77,7 +47,7 @@ function LoginContent() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.replace('/dashboard')
+      router.push('/dashboard')
     }
   }
 
@@ -102,7 +72,7 @@ function LoginContent() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy mx-auto mb-4" />
-          <p className="text-gray-600">Signing you in...</p>
+          <p className="text-gray-600">Signing in...</p>
         </div>
       </div>
     )
@@ -110,77 +80,63 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-navy">PAG Payroll</h1>
-          <p className="mt-2 text-gray-600">Premier Advisory Group Ltd</p>
+      <div className="max-w-md w-full bg-white rounded-lg shadow p-8">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-navy">PAG Payroll</h1>
+          <p className="text-gray-500 mt-1">Premier Advisory Group Ltd</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-8 space-y-6">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
-              {error}
-            </div>
-          )}
+        <button
+          onClick={handleAzureSSO}
+          className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors mb-6"
+        >
+          <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+            <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+            <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+            <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+          </svg>
+          <span className="text-sm font-medium text-gray-700">Sign in with Microsoft</span>
+        </button>
 
-          <button
-            onClick={handleAzureSSO}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-          >
-            <svg width="20" height="20" viewBox="0 0 21 21" fill="none">
-              <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
-              <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
-              <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
-              <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
-            </svg>
-            Sign in with Microsoft
-          </button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">or sign in with email</span>
-            </div>
+        <div className="relative mb-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300" />
           </div>
-
-          <form onSubmit={handleEmailLogin} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 px-4 bg-navy text-white font-medium rounded-lg hover:bg-navy/90 disabled:opacity-50 transition-colors"
-            >
-              Sign in
-            </button>
-          </form>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-500">or sign in with email</span>
+          </div>
         </div>
+
+        <form onSubmit={handleEmailLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy"
+              required
+            />
+          </div>
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+          <button
+            type="submit"
+            className="w-full py-3 bg-navy text-white rounded-lg hover:bg-navy/90 transition-colors font-medium"
+          >
+            Sign in
+          </button>
+        </form>
       </div>
     </div>
   )
