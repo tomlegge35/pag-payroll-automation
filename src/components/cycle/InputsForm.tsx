@@ -125,7 +125,7 @@ export default function InputsForm({ cycleId, cycle, employees, role }: InputsFo
       <div className="card overflow-hidden">
         <h3 className="mb-4">Standing Data — All Active Employees</h3>
         <p className="text-sm text-gray-600 mb-4">
-          Review the standing data below. Click "Add Change" to record any changes for this month.
+          Review the standing data below. Click &quot;Add Change&quot; to record any changes for this month.
         </p>
         
         <div className="overflow-x-auto">
