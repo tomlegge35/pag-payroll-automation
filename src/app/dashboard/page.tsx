@@ -13,9 +13,9 @@ export default async function DashboardPage() {
   if (!user) redirect('/auth/login')
 
   const { data: userRole } = await supabase
-    .from('user_roles')
+    .from('user_profiles')
     .select('role')
-    .eq('user_id', user.id)
+    .eq('id', user.id)
     .single()
 
   const role = userRole?.role || 'pag_operator'
@@ -23,18 +23,19 @@ export default async function DashboardPage() {
   const { data: recentActivity } = await supabase
     .from('audit_log')
     .select('*')
-    .order('created_at', { ascending: false })
+    .order('performed_at', { ascending: false })
     .limit(10)
 
+  // Use maybeSingle() so null is returned gracefully when no cycles exist
   const { data: currentCycle } = await supabase
     .from('payroll_cycles')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   const { data: openQueries } = await supabase
-    .from('queries')
+    .from('payroll_queries')
     .select('*')
     .eq('status', 'open')
 
