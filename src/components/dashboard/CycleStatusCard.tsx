@@ -37,7 +37,9 @@ const STAGE_ACTIONS: Record<string, { label: string; href: string; role?: string
   paid: { label: 'View Summary', href: '/cycle/[id]/summary' },
 }
 
-export default function CycleStatusCard({ cycle, role }: { cycle: Cycle; role: string }) {
+export default function CycleStatusCard({ cycle, role }: { cycle: Cycle | null; role: string }) {
+  if (!cycle) return null
+  if (!cycle) return null
   const stageInfo = STAGE_MAP[cycle.status] || { label: cycle.status, step: 0, color: 'bg-gray-500' }
   const badgeClass = STATUS_BADGES[cycle.status] || 'badge-gray'
   const action = STAGE_ACTIONS[cycle.status]
