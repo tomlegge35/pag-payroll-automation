@@ -7,95 +7,100 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendCycleInitiationEmail } from '@/lib/graph/email'
-import { getCurrentPayrollPeriod } from '@/lib/utils/dates'
+import { get25thAtNoon } from '@/lib/utils/dates'
+
+function getPayDate(year: number, month: number): string {
+  const d25 = new Date(year, month - 1, 25)
+  // If 25th is Saturday move to Friday
+  if (d25.getDay() === 6) d25.setDate(23)
+  // If 25th is Sunday move to Friday
+  if (d25.getDay() === 0) d25.setDate(24)
+  return d25.toISOString().slice(0, 10)
+}
+
+function lastDayOfMonth(year: number, month: number): string {
+  return new Date(year, month, 0).toISOString().slice(0, 10)
+}
 
 export async function POST(request: Request) {
   try {
+    const body = await request.json()
+    const force = body.force === true
     const supabase = createAdminClient()
-    
-    const body = await request.json().catch(() => ({}))
-    const { month, year } = body.month && body.year 
-      ? body 
-      : getCurrentPayrollPeriod()
-    
-    // Check if cycle already exists for this month/year
+
+    // Determine month/year — accept explicit override or use current
+    const now = new Date()
+    const month: number = body.month ?? (now.getMonth() + 1)
+    const year: number = body.year ?? now.getFullYear()
+
+    const reference = `PAG-${year}-${String(month).padStart(2, '0')}`
+    const period_start = `${year}-${String(month).padStart(2, '0')}-01`
+    const period_end = lastDayOfMonth(year, month)
+    const pay_date = getPayDate(year, month)
+
+    // Check if cycle already exists for this period
     const { data: existing } = await supabase
       .from('payroll_cycles')
-      .select('id, status')
-      .eq('month', month)
-      .eq('year', year)
-      .single()
-    
-    if (existing) {
+      .select('id, stage')
+      .eq('reference', reference)
+      .maybeSingle()
+
+    if (existing && !force) {
       return NextResponse.json(
-        { error: `Payroll cycle for ${month}/${year} already exists with status: ${existing.status}` },
+        { error: 'Cycle already exists for this period', cycleId: existing.id },
         { status: 409 }
       )
     }
-    
-    // Create new cycle
-    const { data: cycle, error } = await supabase
+
+    if (existing && force) {
+      return NextResponse.json({ cycleId: existing.id, reference, alreadyExists: true })
+    }
+
+    // Create the cycle
+    const { data: cycle, error: cycleError } = await supabase
       .from('payroll_cycles')
       .insert({
-        month,
-        year,
-        status: 'initiated',
-        xero_confirmed: false,
-        initiated_at: new Date().toISOString(),
+        reference,
+        period_start,
+        period_end,
+        pay_date,
+        stage: 'initiated',
       })
-      .select()
+      .select('id, reference, period_start, period_end, pay_date, stage')
       .single()
-    
-    if (error) throw error
-    
-    // Get employee standing data for email
+
+    if (cycleError || !cycle) {
+      console.error('Failed to create cycle:', cycleError)
+      return NextResponse.json({ error: 'Failed to create payroll cycle' }, { status: 500 })
+    }
+
+    // Fetch active employees for standing data email
     const { data: employees } = await supabase
       .from('employees')
-      .select('name, payroll_id, fte_salary, tax_code, ni_category, pension_scheme, status')
-      .eq('status', 'active')
-      .order('name')
-    
-    // Build standing data HTML table
-    const standingDataHtml = `
-      <table style="width:100%; border-collapse: collapse; font-size: 13px;">
-        <thead>
-          <tr style="background: #1F3864; color: white;">
-            <th style="padding: 8px; text-align: left;">Employee</th>
-            <th style="padding: 8px; text-align: left;">ID</th>
-            <th style="padding: 8px; text-align: right;">FTE Salary</th>
-            <th style="padding: 8px; text-align: left;">Tax Code</th>
-            <th style="padding: 8px; text-align: left;">NI Cat</th>
-            <th style="padding: 8px; text-align: left;">Pension</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${(employees || []).map(e => `
-            <tr style="border-bottom: 1px solid #dee2e6;">
-              <td style="padding: 6px 8px;">${e.name}</td>
-              <td style="padding: 6px 8px;">${e.payroll_id}</td>
-              <td style="padding: 6px 8px; text-align: right;">${e.fte_salary ? `£${e.fte_salary.toLocaleString()}` : 'N/A'}</td>
-              <td style="padding: 6px 8px;">${e.tax_code || 'N/A'}</td>
-              <td style="padding: 6px 8px;">${e.ni_category || 'A'}</td>
-              <td style="padding: 6px 8px;">${e.pension_scheme || 'N/A'}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `
-    
-    // Send initiation email (E1)
-    await sendCycleInitiationEmail(cycle.id, month, year, standingDataHtml)
-    
-    return NextResponse.json({ 
-      success: true, 
-      cycleId: cycle.id,
-      message: `Payroll cycle initiated for ${month}/${year}`
-    })
-  } catch (error) {
-    console.error('Error initiating cycle:', error)
-    return NextResponse.json(
-      { error: 'Failed to initiate payroll cycle' },
-      { status: 500 }
-    )
+      .select('employee_number, full_name, job_title, department, email')
+      .eq('is_active', true)
+      .order('employee_number')
+
+    // Build simple HTML table for standing data
+    const standingDataHtml = `<table border="1" cellpadding="4" style="border-collapse:collapse">
+      <thead><tr><th>Number</th><th>Name</th><th>Role</th><th>Dept</th></tr></thead>
+      <tbody>
+        ${(employees || []).map(e =>
+          `<tr><td>${e.employee_number}</td><td>${e.full_name}</td><td>${e.job_title || ''}</td><td>${e.department || ''}</td></tr>`
+        ).join('')}
+      </tbody>
+    </table>`
+
+    // Send initiation email (fire and forget — don't block on email failure)
+    try {
+      await sendCycleInitiationEmail(cycle.id, month, year, standingDataHtml)
+    } catch (emailErr) {
+      console.error('Initiation email failed (non-fatal):', emailErr)
+    }
+
+    return NextResponse.json({ cycleId: cycle.id, reference, period_start, period_end, pay_date })
+  } catch (err) {
+    console.error('Initiate cycle error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
