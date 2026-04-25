@@ -1,4 +1,8 @@
-# PAG Payroll Automation - Supabase Configuration
+# PAG Payroll Automation - Supabase Local Configuration
+# This file controls the LOCAL Supabase stack only (supabase start).
+# It does NOT control the hosted Supabase project at offwktjhwfveaearifja.supabase.co.
+# For hosted project settings, use the Supabase Dashboard.
+
 [api]
 enabled = true
 port = 54321
@@ -32,16 +36,21 @@ enabled = false
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://pag-payroll.netlify.app"]
+additional_redirect_urls = [
+  "http://localhost:3000/**",
+  "https://pag-payroll.netlify.app",
+  "https://pag-payroll.netlify.app/**"
+]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
-enable_signup = true
+# Signup is disabled - this is a closed payroll system with pre-seeded users only
+enable_signup = false
 
 [auth.email]
-enable_signup = true
+enable_signup = false
 double_confirm_changes = true
-enable_confirmations = false
+enable_confirmations = true
 
 [auth.external.azure]
 enabled = true
