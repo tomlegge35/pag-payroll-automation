@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -10,11 +10,48 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  // Handle OAuth code exchange if code lands on this page instead of /auth/callback
+  useEffect(() => {
+    const code = searchParams.get('code')
+    if (code) {
+      setLoading(true)
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) {
+          setError(error.message)
+          setLoading(false)
+        } else {
+          router.push('/dashboard')
+        }
+      })
+    }
+
+    // Handle hash-based tokens (implicit flow)
+    const hash = window.location.hash
+    if (hash && hash.includes('access_token')) {
+      setLoading(true)
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          router.push('/dashboard')
+        } else {
+          setLoading(false)
+        }
+      })
+    }
+
+    // Handle error in URL params
+    const urlError = searchParams.get('error')
+    const urlErrorDesc = searchParams.get('error_description')
+    if (urlError) {
+      setError(urlErrorDesc || urlError)
+    }
+  }, [])
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,6 +83,17 @@ export default function LoginPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pag-blue mx-auto mb-4" />
+          <p className="text-gray-600">Signing you in...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
@@ -65,8 +113,14 @@ export default function LoginPage() {
             <path d="M1 12h10v10H1z" fill="#00A4EF"/>
             <path d="M12 12h10v10H12z" fill="#FFB900"/>
           </svg>
-          {loading ? 'Signing in...' : 'Sign in with Microsoft'}
+          Sign in with Microsoft
         </button>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            {error}
+          </div>
+        )}
 
         <div className="relative mb-6">
           <div className="absolute inset-0 flex items-center">
@@ -78,31 +132,26 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleEmailLogin} className="space-y-4">
-          {error && (
-            <div className="bg-red-50 text-red-700 text-sm rounded-lg p-3">
-              {error}
-            </div>
-          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input
               type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
               required
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pag-blue"
               placeholder="you@example.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
             <input
               type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
               required
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pag-blue"
               placeholder="••••••••"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
             />
           </div>
           <button
@@ -110,7 +159,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-gray-800 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50"
           >
-            {loading ? 'Signing in...' : 'Sign in'}
+            Sign in
           </button>
         </form>
       </div>
