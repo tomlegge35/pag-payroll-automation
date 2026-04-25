@@ -20,14 +20,12 @@ export default async function DashboardPage() {
 
   const role = userRole?.role || 'pag_operator'
 
-  // Get recent activity (audit log)
   const { data: recentActivity } = await supabase
     .from('audit_log')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(10)
 
-  // Get current cycle
   const { data: currentCycle } = await supabase
     .from('payroll_cycles')
     .select('*')
@@ -35,7 +33,6 @@ export default async function DashboardPage() {
     .limit(1)
     .single()
 
-  // Get action items based on role
   const { data: openQueries } = await supabase
     .from('queries')
     .select('*')
@@ -52,7 +49,7 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <CycleStatusCard cycle={currentCycle} role={role} />
-            <ActionItems queries={openQueries || []} role={role} cycleId={currentCycle?.id} />
+            <ActionItems cycle={currentCycle} role={role} openQueries={openQueries || []} />
           </div>
           <div>
             <ActivityFeed activities={recentActivity || []} />
