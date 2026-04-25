@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { User } from '@supabase/supabase-js';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
 interface PayrollRecord {
@@ -33,7 +34,7 @@ export default function CycleSummaryPage() {
   const [cycle, setCycle] = useState<PayrollCycle | null>(null);
   const [records, setRecords] = useState<PayrollRecord[]>([]);
   const [notifications, setNotifications] = useState<StaffNotification[]>([]);
-  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string>('pag_operator');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +75,7 @@ export default function CycleSummaryPage() {
   }
 
   if (loading) return (
-    <DashboardLayout user={user} role={role}>
+    <DashboardLayout user={user ?? undefined} role={role}>
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy" />
       </div>
@@ -82,7 +83,7 @@ export default function CycleSummaryPage() {
   );
 
   if (error) return (
-    <DashboardLayout user={user} role={role}>
+    <DashboardLayout user={user ?? undefined} role={role}>
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">{error}</div>
     </DashboardLayout>
   );
@@ -96,7 +97,7 @@ export default function CycleSummaryPage() {
   const tPension = records.reduce((s,r) => s + (r.pension_ee||0), 0);
 
   return (
-    <DashboardLayout user={user} role={role}>
+    <DashboardLayout user={user ?? undefined} role={role}>
       <div className="space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div>
