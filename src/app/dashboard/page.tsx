@@ -16,7 +16,7 @@ export default async function DashboardPage() {
     .from('user_profiles')
     .select('role')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   const role = userRole?.role || 'pag_operator'
 
@@ -26,7 +26,6 @@ export default async function DashboardPage() {
     .order('performed_at', { ascending: false })
     .limit(10)
 
-  // Use maybeSingle() so null is returned gracefully when no cycles exist
   const { data: currentCycle } = await supabase
     .from('payroll_cycles')
     .select('*')
