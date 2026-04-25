@@ -34,17 +34,22 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Use getSession() instead of getUser() - reads from cookie, no network call
+  const { data: { session } } = await supabase.auth.getSession()
 
-  // Protect all routes except auth
-  if (!user && !request.nextUrl.pathname.startsWith('/auth')) {
+  // Redirect unauthenticated users away from protected routes
+  const pathname = request.nextUrl.pathname
+  const isAuthRoute = pathname.startsWith('/auth')
+  const isPublicRoute = pathname === '/' || pathname.startsWith('/_next') || pathname.startsWith('/favicon')
+
+  if (!session && !isAuthRoute && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from auth pages
-  if (user && request.nextUrl.pathname.startsWith('/auth')) {
+  // Redirect authenticated users away from login to dashboard
+  if (session && pathname.startsWith('/auth') && !pathname.startsWith('/auth/callback')) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
@@ -55,6 +60,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
