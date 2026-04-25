@@ -5,6 +5,8 @@
 [build.environment]
   NODE_VERSION = "18"
   NEXT_USE_NETLIFY_EDGE = "true"
+  NEXT_PUBLIC_SUPABASE_URL = "https://placeholder.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "placeholder-anon-key"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
@@ -34,7 +36,3 @@
   schedule = "*/15 8-18 * * 1-5"
 
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-  conditions = {Role = ["pag_admin", "pag_operator", "accountant"]}
